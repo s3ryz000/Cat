@@ -201,7 +201,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 <div id="app"></div>
 <div id="status" role="status" hidden></div>
 
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script>
 // Each cat: photo file (photos/<img>.jpg), four options, index of the right one.
@@ -227,7 +227,13 @@ const QUESTIONS = [
   { img: 'odd-eye',     options: ['Duling', 'Heterochromia', 'Odd-Eye', 'Two-Tone'], answer: 2 },
 ];
 
-const PREFIX = 'namethatcat-v1-';
+// Host and phones talk through a public MQTT relay over secure WebSockets, so it works
+// across any mix of Wi-Fi and mobile data. The host uses the first relay that answers;
+// phones look for the game on each relay in the same order.
+const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/mqtt'];
+const TOPIC = 'namethatcat/v1/';
+const ONLINE_MS = 15000;
+const rand = () => Math.random().toString(36).slice(2, 8);
 const LETTERS = ['A', 'B', 'C', 'D'];
 const AVATARS = ['🐱', '😺', '🐈', '🐈‍⬛', '🦁', '🐯', '🐭', '🐟', '🧶', '🍜', '🥛', '🐾'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -248,8 +254,11 @@ function status(msg) {
   el.textContent = msg || '';
   el.hidden = !msg;
 }
-function send(conn, m) {
-  if (conn && conn.open) { try { conn.send(m); } catch (e) {} }
+function publish(client, topic, m) {
+  if (client && client.connected) client.publish(topic, JSON.stringify(m), { qos: 1 });
+}
+function parse(payload) {
+  try { const m = JSON.parse(payload.toString()); return m && typeof m === 'object' ? m : null; } catch (e) { return null; }
 }
 function makeCode() {
   let s = '';
@@ -330,50 +339,54 @@ function hostStart(resume) {
     ready: false,
   });
   if (saved) {
-    for (const p of saved.players) H.players.set(p.id, { ...p, conn: null, gain: 0 });
+    for (const p of saved.players) H.players.set(p.id, { ...p, seen: 0, gain: 0 });
     if (saved.phase === 'end') H.phase = 'end';
     else if (saved.phase === 'question') { H.qi = saved.qi - 1; H.phase = H.qi >= 0 ? 'board' : 'lobby'; }
     else if (saved.qi >= 0) H.phase = 'board';
   }
   QUESTIONS.forEach(q => { new Image().src = `photos/${q.img}.jpg`; });
   hostConnecting('Opening a game room…');
-  openHostPeer(0);
+  hostConnect(0);
+  clearInterval(H.presence);
+  H.presence = setInterval(() => {
+    hostRefreshLive();
+    if (H.phase === 'question') {
+      const live = connected();
+      if (live.length && live.every(o => H.answers.has(o.id))) hostReveal();
+    }
+  }, 3000);
 }
 
 function hostConnecting(msg) {
   app.innerHTML = `<main class="landing"><div class="brand">${dots}<h1 class="display">Name That Cat</h1><p>${esc(msg)}</p></div></main>`;
 }
 
-function openHostPeer(attempt) {
-  if (H.peer) { try { H.peer.destroy(); } catch (e) {} }
-  const peer = new Peer(PREFIX + H.code);
-  H.peer = peer;
-  peer.on('open', () => { H.ready = true; status(''); hostSave(); hostRender(); });
-  peer.on('connection', conn => {
-    conn.on('data', m => hostOnData(conn, m));
-    conn.on('close', () => hostOnClose(conn));
-    conn.on('error', () => hostOnClose(conn));
+function hostConnect(bi) {
+  if (H.client) { try { H.client.end(true); } catch (e) {} }
+  const client = mqtt.connect(BROKERS[bi], {
+    clientId: 'ntc-h-' + H.code + '-' + rand(), clean: true, keepalive: 20, reconnectPeriod: 2000, connectTimeout: 8000,
   });
-  peer.on('disconnected', () => {
-    if (!peer.destroyed) { status('Reconnecting to the game server…'); peer.reconnect(); }
+  H.client = client;
+  let up = false;
+  const giveUp = setTimeout(() => {
+    if (up) return;
+    if (bi + 1 < BROKERS.length) hostConnect(bi + 1);
+    else { client.end(true); hostConnecting('Could not reach the game server. Check the internet connection, then refresh this page.'); }
+  }, 9000);
+  client.on('connect', () => {
+    up = true;
+    clearTimeout(giveUp);
+    client.subscribe(TOPIC + H.code + '/up', { qos: 1 }, () => {
+      status('');
+      if (!H.ready) { H.ready = true; hostSave(); hostRender(); }
+      broadcast();
+    });
   });
-  peer.on('error', err => {
-    if (err.type === 'unavailable-id') {
-      if (attempt < 6) {
-        hostConnecting(`Room ${H.code} is still closing from last time. Retrying…`);
-        setTimeout(() => openHostPeer(attempt + 1), 3000);
-      } else {
-        H.code = makeCode();
-        openHostPeer(0);
-      }
-    } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) {
-      status('Lost connection to the game server. Retrying…');
-      setTimeout(() => { if (peer.disconnected && !peer.destroyed) peer.reconnect(); }, 3000);
-    } else if (err.type !== 'peer-unavailable') {
-      console.warn('Peer error', err);
-    }
-  });
+  client.on('message', (topic, payload) => { const m = parse(payload); if (m) hostOnData(m); });
+  client.on('offline', () => { if (up) status('Reconnecting to the game server…'); });
+  client.on('error', err => console.warn('Relay error', err && err.message));
 }
+function hostSend(p, m) { publish(H.client, TOPIC + H.code + '/p/' + p.id, m); }
 
 function hostSave() {
   store.set('ntc-host', {
@@ -383,45 +396,46 @@ function hostSave() {
 }
 
 const curQ = () => QUESTIONS[H.order[H.qi]];
-const connected = () => [...H.players.values()].filter(p => p.conn && p.conn.open);
+const isOnline = p => Date.now() - p.seen < ONLINE_MS;
+const connected = () => [...H.players.values()].filter(isOnline);
 const ranked = () => [...H.players.values()].sort((a, b) => b.score - a.score);
 const rankOf = p => 1 + [...H.players.values()].filter(o => o.score > p.score).length;
 
-function hostOnData(conn, m) {
-  if (!m || typeof m !== 'object') return;
+function hostOnData(m) {
+  const id = String(m.id || '').replace(/[^a-z0-9]/gi, '').slice(0, 40);
+  if (!id) return;
   if (m.t === 'join') {
-    const id = String(m.id || '').slice(0, 40);
     const name = String(m.name || '').trim().slice(0, 20);
     const avatar = AVATARS.includes(m.avatar) ? m.avatar : AVATARS[0];
-    if (!id || !name) return send(conn, { t: 'error', msg: 'Enter a name first.' });
+    if (!name) return hostSend({ id }, { t: 'error', msg: 'Enter a name first.' });
     const clash = [...H.players.values()].find(p => p.name.toLowerCase() === name.toLowerCase() && p.id !== id);
-    if (clash) return send(conn, { t: 'error', msg: `Someone already joined as “${name}”. Pick another name.` });
+    if (clash) return hostSend({ id }, { t: 'error', msg: `Someone already joined as “${name}”. Pick another name.` });
     let p = H.players.get(id);
     if (!p) { p = { id, name, avatar, score: 0, gain: 0, correct: 0 }; H.players.set(id, p); }
     else { p.name = name; p.avatar = avatar; }
-    if (p.conn && p.conn !== conn) { try { p.conn.close(); } catch (e) {} }
-    p.conn = conn;
-    conn.pid = id;
+    p.seen = Date.now();
     hostSave();
     sendState(p);
     hostRefreshLive();
-  } else if (m.t === 'answer') {
-    const p = H.players.get(conn.pid);
-    if (!p || H.phase !== 'question' || m.qi !== H.qi || H.answers.has(p.id)) return;
+    return;
+  }
+  const p = H.players.get(id);
+  if (!p) return hostSend({ id }, { t: 'rejoin' });
+  if (m.t === 'bye') { p.seen = 0; hostRefreshLive(); return; }
+  const wasOnline = isOnline(p);
+  p.seen = Date.now();
+  if (!wasOnline) hostRefreshLive();
+  if (m.t === 'answer') {
+    if (H.phase !== 'question' || m.qi !== H.qi || H.answers.has(p.id)) return;
     const pick = Number(m.pick);
     if (!(pick >= 0 && pick <= 3)) return;
     const ms = Math.min(Date.now() - H.qStart, H.limit * 1000);
     H.answers.set(p.id, { pick, ms });
-    send(conn, { t: 'locked', pick });
+    hostSend(p, { t: 'locked', pick });
     hostRefreshLive();
     const live = connected();
     if (live.length && live.every(o => H.answers.has(o.id))) hostReveal();
   }
-}
-
-function hostOnClose(conn) {
-  const p = H.players.get(conn.pid);
-  if (p && p.conn === conn) { p.conn = null; hostRefreshLive(); }
 }
 
 function revealMsg(p) {
@@ -439,20 +453,19 @@ function endMsg(p) {
   };
 }
 function sendState(p) {
-  if (!p.conn) return;
   if (H.phase === 'lobby' || (H.phase === 'board' && H.qi < 0)) {
-    send(p.conn, { t: 'lobby', name: p.name, avatar: p.avatar });
+    hostSend(p, { t: 'lobby', name: p.name, avatar: p.avatar });
   } else if (H.phase === 'question') {
     const q = curQ();
     const a = H.answers.get(p.id);
-    send(p.conn, {
+    hostSend(p, {
       t: 'q', qi: H.qi, n: H.qi + 1, total: H.order.length, img: q.img, options: q.options,
       remaining: H.limit * 1000 - (Date.now() - H.qStart), limit: H.limit * 1000, locked: a ? a.pick : null,
     });
   } else if (H.phase === 'reveal' || H.phase === 'board') {
-    send(p.conn, revealMsg(p));
+    hostSend(p, revealMsg(p));
   } else if (H.phase === 'end') {
-    send(p.conn, endMsg(p));
+    hostSend(p, endMsg(p));
   }
 }
 function broadcast() { for (const p of H.players.values()) sendState(p); }
@@ -530,8 +543,10 @@ function hostPlayAgain() {
 function hostQuit() {
   clearInterval(H.tick);
   store.del('ntc-host');
-  try { H.peer.destroy(); } catch (e) {}
-  H.peer = null;
+  clearInterval(H.presence);
+  try { H.client.end(true); } catch (e) {}
+  H.client = null;
+  H.ready = false;
   landing();
 }
 
@@ -543,7 +558,7 @@ function countText() {
 function rosterHtml() {
   if (!H.players.size) return '<li class="muted">Scan the QR code or open the link on your phone to join.</li>';
   return [...H.players.values()].map(p =>
-    `<li class="chip ${p.conn && p.conn.open ? '' : 'off'}"><span class="av">${p.avatar}</span>${esc(p.name)}</li>`).join('');
+    `<li class="chip ${isOnline(p) ? '' : 'off'}"><span class="av">${p.avatar}</span>${esc(p.name)}</li>`).join('');
 }
 
 // Draws the QR modules straight onto a canvas instead of using the library's GIF encoder.
@@ -709,8 +724,8 @@ function hostRefreshLive() {
   const c = $('#count');
   if (c) c.textContent = countText();
   if (H.phase === 'lobby') {
-    const r = $('#roster');
-    if (r) r.innerHTML = rosterHtml();
+    const r = $('#roster'), html = rosterHtml();
+    if (r && r.dataset.html !== html) { r.innerHTML = html; r.dataset.html = html; }
     const h = $('#hint');
     if (h) h.textContent = `${plural(H.players.size, 'player')} in the room`;
     const b = $('#primary');
@@ -723,7 +738,7 @@ function hostRefreshLive() {
 }
 
 document.addEventListener('keydown', e => {
-  if (!H.peer || !H.ready) return;
+  if (!H.client || !H.ready) return;
   if (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) return;
   if (e.key === 'Enter' || e.key === ' ') {
     const b = $('#primary');
@@ -731,7 +746,7 @@ document.addEventListener('keydown', e => {
   }
 });
 window.addEventListener('beforeunload', e => {
-  if (H.peer && (H.phase === 'question' || H.phase === 'reveal' || H.phase === 'board')) { e.preventDefault(); e.returnValue = ''; }
+  if (H.client && (H.phase === 'question' || H.phase === 'reveal' || H.phase === 'board')) { e.preventDefault(); e.returnValue = ''; }
 });
 
 /* ---------------- Player ---------------- */
@@ -742,7 +757,7 @@ function playerId() {
   return id;
 }
 
-const P = { id: playerId(), code: '', peer: null, conn: null, joined: false, me: store.get('ntc-me') || { name: '', avatar: AVATARS[0] }, q: null, tick: null, retry: null, joinTimer: null };
+const P = { id: playerId(), code: '', client: null, bi: 0, joined: false, me: store.get('ntc-me') || { name: '', avatar: AVATARS[0] }, q: null, tick: null, beat: null, joinTimer: null };
 
 function phoneHead(left) {
   return `<header class="phone-head">${left}<span class="me">${P.me.avatar} ${esc(P.me.name)}</span></header>`;
@@ -791,58 +806,51 @@ function joinFail(msg) {
   playerJoinScreen(P.code, msg);
 }
 
-function playerConnect() {
-  clearTimeout(P.retry);
-  if (P.peer && !P.peer.destroyed && P.peer.open) return dialHost();
-  if (P.peer) { try { P.peer.destroy(); } catch (e) {} }
-  const peer = new Peer();
-  P.peer = peer;
-  peer.on('open', dialHost);
-  peer.on('disconnected', () => { if (!peer.destroyed) peer.reconnect(); });
-  peer.on('error', err => {
-    if (err.type === 'peer-unavailable') {
-      if (P.joined) { status('The host screen is offline. Retrying…'); P.retry = setTimeout(playerConnect, 3000); }
-      else joinFail(`No game found with code ${P.code}. Check the code on the big screen.`);
-    } else if (!P.joined) {
-      joinFail('Could not reach the game server. Check your internet connection and try again.');
-    } else {
-      status('Connection lost. Reconnecting…');
-      P.retry = setTimeout(playerConnect, 3000);
-    }
-  });
-}
-
-function dialHost() {
-  const conn = P.peer.connect(PREFIX + P.code, { reliable: true });
-  P.conn = conn;
+// Looks for the game on each relay in turn. Once the host answers, stays on that relay
+// and lets MQTT.js reconnect on its own after drops.
+function playerConnect(bi) {
   clearTimeout(P.joinTimer);
+  clearInterval(P.beat);
+  if (P.client) { try { P.client.end(true); } catch (e) {} }
+  if (bi === undefined) bi = P.joined ? P.bi : 0;
+  P.bi = bi;
+  const up = TOPIC + P.code + '/up';
+  const client = mqtt.connect(BROKERS[bi], {
+    clientId: 'ntc-p-' + rand() + rand(), clean: true, keepalive: 20, reconnectPeriod: 2000, connectTimeout: 8000,
+    will: { topic: up, payload: JSON.stringify({ t: 'bye', id: P.id }), qos: 0, retain: false },
+  });
+  P.client = client;
   P.joinTimer = setTimeout(() => {
-    if (conn.open) return;
-    if (P.joined) { status('Still reconnecting…'); P.retry = setTimeout(playerConnect, 2000); }
-    else joinFail('The game did not answer. Make sure the host screen is open, then try again.');
-  }, 12000);
-  conn.on('open', () => {
-    clearTimeout(P.joinTimer);
-    conn.send({ t: 'join', id: P.id, name: P.me.name, avatar: P.me.avatar });
-    status('');
+    if (P.client !== client || P.joined) return;
+    client.end(true);
+    if (bi + 1 < BROKERS.length) playerConnect(bi + 1);
+    else joinFail(`No game found with code ${P.code}. Make sure the host screen is open and the code matches.`);
+  }, 8000);
+  client.on('connect', () => {
+    client.subscribe(TOPIC + P.code + '/p/' + P.id, { qos: 1 }, () => {
+      publish(client, up, { t: 'join', id: P.id, name: P.me.name, avatar: P.me.avatar });
+    });
   });
-  conn.on('data', playerOnData);
-  conn.on('close', () => {
-    if (P.conn === conn && P.joined) { status('Connection lost. Reconnecting…'); P.retry = setTimeout(playerConnect, 2000); }
-  });
+  client.on('message', (topic, payload) => { if (P.client === client) { const m = parse(payload); if (m) playerOnData(m); } });
+  client.on('offline', () => { if (P.joined && P.client === client) status('Connection lost. Reconnecting…'); });
+  P.beat = setInterval(() => { if (P.joined) pSend({ t: 'ping' }); }, 5000);
 }
+function pSend(m) { publish(P.client, TOPIC + P.code + '/up', { ...m, id: P.id }); }
 
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && P.joined && (!P.conn || !P.conn.open)) playerConnect();
+  if (!document.hidden && P.joined && P.client && !P.client.connected) P.client.reconnect();
 });
 
 function playerOnData(m) {
-  if (!m || typeof m !== 'object') return;
+  clearTimeout(P.joinTimer);
+  status('');
   if (m.t === 'error') {
     P.joined = false;
-    try { P.conn.close(); } catch (e) {}
+    clearInterval(P.beat);
+    try { P.client.end(true); } catch (e) {}
     return playerJoinScreen(P.code, m.msg);
   }
+  if (m.t === 'rejoin') return pSend({ t: 'join', name: P.me.name, avatar: P.me.avatar });
   P.joined = true;
   if (m.t === 'lobby') pWaiting();
   else if (m.t === 'q') pQuestion(m);
@@ -881,7 +889,7 @@ function pQuestion(m) {
     b.onclick = () => {
       if (P.q.picked !== null) return;
       const i = Number(b.dataset.i);
-      send(P.conn, { t: 'answer', qi: m.qi, pick: i });
+      pSend({ t: 'answer', qi: m.qi, pick: i });
       pLocked(i);
     };
   });
@@ -955,7 +963,7 @@ function pEnd(m) {
 /* ---------------- Boot ---------------- */
 
 const room = (new URLSearchParams(location.search).get('room') || '').trim().toUpperCase();
-if (typeof Peer === 'undefined') {
+if (typeof mqtt === 'undefined') {
   app.innerHTML = `<main class="landing"><div class="brand">${dots}<h1 class="display">Name That Cat</h1><p>The game engine could not load. Check your internet connection and refresh.</p></div></main>`;
 } else if (room) {
   P.code = room;
