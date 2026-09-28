@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Name That Cat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;600;700&display=swap">
+<style>
+:root{
+  --bg:#eef2f0; --surface:#ffffff; --ink:#17202b; --muted:#5b6a70; --line:#d3ddd8;
+  --accent:#ff6b1a; --accent-deep:#c94a00; --accent-soft:#fff1e8;
+  --panel:#17202b; --panel-ink:#f3f6f4;
+  --o0:#e0413f; --o1:#2c6fd6; --o2:#f0ad00; --o3:#1f9d61; --o2-ink:#241a00;
+  --good:#1f9d61; --bad:#e0413f; --radius:14px;
+  --display:"Bricolage Grotesque", Figtree, system-ui, sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 Figtree, system-ui, -apple-system, "Segoe UI", sans-serif;-webkit-tap-highlight-color:transparent}
+img{max-width:100%}
+[hidden]{display:none!important}
+.display{font-family:var(--display);font-weight:800;letter-spacing:-.02em;line-height:1.05;text-wrap:balance;margin:0}
+.eyebrow{text-transform:uppercase;letter-spacing:.12em;font-size:.78rem;font-weight:700;color:var(--muted);margin:0}
+.muted{color:var(--muted);margin:0}
+.btn{font:inherit;font-weight:700;border:0;border-radius:999px;padding:.8em 1.6em;cursor:pointer;background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 2px var(--line)}
+.btn.primary{background:var(--accent);color:#fff;box-shadow:0 4px 0 var(--accent-deep)}
+.btn.primary:active:not(:disabled){transform:translateY(2px);box-shadow:0 2px 0 var(--accent-deep)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.small{padding:.4em 1em;font-size:.85rem}
+.btn.block{width:100%;font-size:1.15rem}
+:focus-visible{outline:3px solid var(--o1);outline-offset:2px}
+.dots{display:flex;gap:6px}
+.dots i{width:14px;height:14px;border-radius:4px;display:block}
+.dots i:nth-child(1){background:var(--o0)}.dots i:nth-child(2){background:var(--o1)}.dots i:nth-child(3){background:var(--o2)}.dots i:nth-child(4){background:var(--o3)}
+
+/* Landing */
+.landing{max-width:980px;margin:0 auto;padding-block:clamp(32px,8vw,88px);padding-inline:16px;display:grid;gap:36px}
+.brand{display:grid;gap:14px}
+.brand h1{font-size:clamp(3rem,10vw,6.2rem)}
+.brand p{font-size:1.25rem;color:var(--muted);margin:0;max-width:34ch}
+.choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:24px;display:grid;gap:12px;align-content:start}
+.card h2{font-family:var(--display);font-size:1.6rem;margin:0}
+.card p{margin:0;color:var(--muted)}
+.card form{display:grid;gap:10px}
+.card label{font-weight:700}
+
+/* Host */
+.host{display:grid;grid-template-columns:1fr;height:100dvh}
+.host.with-panel{grid-template-columns:minmax(250px,320px) minmax(0,1fr)}
+.joinpanel{background:var(--panel);color:var(--panel-ink);padding:28px 24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center}
+.joinpanel .qr{background:#fff;padding:10px;border-radius:12px;width:100%;max-width:240px}
+.joinpanel .qr img{width:100%;display:block;image-rendering:pixelated}
+.qr-fail{color:var(--ink);margin:0;padding:24px 8px;font-weight:700}
+.qr-warn{margin:0;background:#ffd84d;color:#241a00;border-radius:10px;padding:10px 12px;font-size:.9rem;font-weight:600;max-width:260px}
+.joinpanel h3{font-family:var(--display);font-size:1.6rem;margin:6px 0 0}
+.joinpanel .url{font-size:1.05rem;word-break:break-all;margin:0;opacity:.85}
+.joinpanel .code{font-family:var(--display);font-weight:800;font-size:3.4rem;letter-spacing:.08em;line-height:1}
+.stage{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-width:0;min-height:0}
+.topbar{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--line);background:var(--surface);font-size:1.05rem;flex-wrap:wrap}
+.code-pill{font-weight:800;letter-spacing:.12em;background:var(--ink);color:var(--bg);padding:2px 10px;border-radius:8px}
+.grow{flex:1}
+.count{font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+.screen{padding:24px clamp(16px,3vw,40px);min-height:0;overflow:auto;display:grid}
+.controls{display:flex;justify-content:flex-end;align-items:center;gap:12px;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface);flex-wrap:wrap}
+.hint{margin-right:auto;color:var(--muted)}
+.kbd{font-size:.8rem;color:var(--muted)}
+
+.lobby{align-self:center;justify-self:center;text-align:center;display:grid;gap:14px;max-width:900px;width:100%;justify-items:center}
+.lobby h1{font-size:clamp(3rem,7vw,6rem)}
+.lede{font-size:1.25rem;color:var(--muted);margin:0}
+.roster{list-style:none;padding:0;margin:14px 0;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;min-height:56px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 16px 6px 10px;font-weight:700;font-size:1.1rem;animation:pop .35s ease-out}
+.chip .av{font-size:1.6rem;line-height:1}
+.chip.off{opacity:.45}
+.settings{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;color:var(--muted);align-items:center}
+.settings label{display:inline-flex;gap:8px;align-items:center}
+select{font:inherit;padding:4px 8px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+
+.qgrid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;gap:20px;min-height:0}
+.photo{margin:0;background:#101820;border-radius:var(--radius);overflow:hidden;display:grid;place-items:center;min-height:0}
+.photo img{width:100%;height:100%;object-fit:contain;display:block;max-height:54vh}
+.side{display:flex;flex-direction:column;justify-content:center;gap:14px;min-width:0}
+.q{font-size:clamp(2rem,4vw,3.6rem)}
+.clock{position:relative;width:clamp(110px,12vw,160px);aspect-ratio:1;max-width:100%}
+.clock svg{width:100%;height:100%;transform:rotate(-90deg)}
+.clock .track{fill:none;stroke:var(--line);stroke-width:9}
+.clock #ring{fill:none;stroke:var(--accent);stroke-width:9;stroke-linecap:round;stroke-dasharray:283;transition:stroke-dashoffset .2s linear}
+.clock span{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:clamp(2.2rem,4vw,3.4rem);font-variant-numeric:tabular-nums}
+.answered{font-size:1.3rem;margin:0;color:var(--muted)}
+.answered b{color:var(--ink);font-size:1.8rem;font-variant-numeric:tabular-nums}
+.answer-reveal{font-size:clamp(1.4rem,2.6vw,2.2rem);margin:0;font-weight:600}
+.answer-reveal b{color:var(--accent-deep)}
+.opts{grid-column:1/-1;list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.opt{position:relative;display:flex;align-items:center;gap:14px;padding:14px 20px;border-radius:var(--radius);color:#fff;font-weight:700;font-size:clamp(1.2rem,2.2vw,1.8rem);overflow:hidden;min-height:68px;transition:opacity .3s}
+.o0{background:var(--o0)}.o1{background:var(--o1)}.o2{background:var(--o2);color:var(--o2-ink)}.o3{background:var(--o3)}
+.letter{display:inline-grid;place-items:center;width:1.8em;height:1.8em;border-radius:8px;background:rgba(255,255,255,.24);font-size:.8em;flex:none}
+.oname{flex:1;position:relative;z-index:1;min-width:0;overflow-wrap:anywhere}
+.ocount{position:relative;z-index:1;font-variant-numeric:tabular-nums;font-family:var(--display);font-size:1.2em}
+.obar{position:absolute;left:0;bottom:0;height:8px;width:calc(var(--w) * 100%);background:rgba(255,255,255,.75);transition:width .6s ease-out}
+.is-reveal .opt.wrong{opacity:.32}
+.is-reveal .opt.right{box-shadow:inset 0 0 0 4px rgba(255,255,255,.9)}
+
+.board{justify-self:center;width:min(760px,100%);display:grid;gap:14px;align-content:start}
+.board h2{font-size:clamp(2.4rem,5vw,4rem)}
+.ranks{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.ranks li{display:grid;grid-template-columns:2em 1.8em minmax(0,1fr) auto 5.5em;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-size:clamp(1.05rem,2vw,1.35rem);font-weight:700;animation:slide .4s ease-out both;animation-delay:calc(var(--i) * 60ms)}
+.ranks li:first-child{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.ranks .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk{font-family:var(--display);font-variant-numeric:tabular-nums}
+.av{font-size:1.4em;line-height:1}
+.gain{color:var(--good);font-size:.85em;font-variant-numeric:tabular-nums}
+.ranks li:first-child .gain{color:#7be0ad}
+.pts{text-align:right;font-variant-numeric:tabular-nums}
+@keyframes slide{from{transform:translateY(8px);opacity:0}}
+
+.final{display:grid;gap:22px;align-content:start;justify-items:center;width:100%}
+.final h2{font-size:clamp(2.4rem,5vw,4rem);text-align:center}
+.podium{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;gap:12px;max-width:760px;width:100%}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:14px 14px 0 0;text-align:center;padding:16px 8px;display:grid;gap:2px;align-content:start;overflow-wrap:anywhere}
+.step .av{font-size:3rem}
+.step .who{font-weight:700;font-size:1.25rem}
+.step .pts{text-align:center;color:var(--muted)}
+.step.p1{min-height:250px;background:var(--accent);color:#fff;border-color:var(--accent)}
+.step.p1 .pts{color:#fff}
+.step.p2{min-height:195px}.step.p3{min-height:150px}
+.place{font-family:var(--display);font-size:2rem;font-weight:800}
+.rest{width:min(760px,100%)}
+
+/* Phone */
+.phone{max-width:480px;margin:0 auto;padding-block:16px 40px;padding-inline:16px;display:grid;gap:14px;min-height:100dvh;align-content:start}
+.phone-head{display:flex;justify-content:space-between;align-items:center;gap:12px;font-weight:700;color:var(--muted)}
+.logo{font-family:var(--display);font-weight:800;color:var(--ink);font-size:1.35rem;display:flex;gap:10px;align-items:center}
+.logo .dots i{width:10px;height:10px;border-radius:3px}
+.me{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.join{display:grid;gap:10px}
+.join > label{font-weight:700;margin-top:4px}
+.big-in{font:inherit;font-size:1.2rem;padding:12px 14px;border-radius:12px;border:2px solid var(--line);background:var(--surface);color:var(--ink);width:100%}
+.big-in:focus{border-color:var(--accent);outline:none}
+.big-in.code{text-transform:uppercase;letter-spacing:.25em;font-weight:800;text-align:center;font-size:1.6rem}
+.avatars{border:0;padding:0;margin:4px 0 0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.avatars legend{font-weight:700;margin-bottom:8px;padding:0}
+.av-opt{position:relative}
+.av-opt input{position:absolute;opacity:0;pointer-events:none}
+.av-opt span{display:grid;place-items:center;aspect-ratio:1;font-size:1.7rem;border-radius:12px;background:var(--surface);border:2px solid var(--line);cursor:pointer}
+.av-opt input:checked + span{border-color:var(--accent);background:var(--accent-soft)}
+.av-opt input:focus-visible + span{outline:3px solid var(--o1);outline-offset:2px}
+.err{color:var(--bad);font-weight:700;margin:0}
+.waiting{text-align:center;display:grid;gap:10px;padding-top:10vh;justify-items:center}
+.big-av{font-size:5.5rem;line-height:1}
+.waiting h2{font-size:2.4rem}
+.pulse{display:flex;gap:8px;margin-top:10px}
+.pulse i{width:12px;height:12px;border-radius:50%;animation:bob 1.2s ease-in-out infinite}
+.pulse i:nth-child(1){background:var(--o0)}.pulse i:nth-child(2){background:var(--o1);animation-delay:.15s}.pulse i:nth-child(3){background:var(--o2);animation-delay:.3s}.pulse i:nth-child(4){background:var(--o3);animation-delay:.45s}
+@keyframes bob{50%{transform:translateY(-8px)}}
+.pq{font-size:1.9rem;text-align:center}
+.photo.sm img{max-height:34vh}
+.tbar{height:10px;border-radius:99px;background:var(--line);overflow:hidden}
+.tbar span{display:block;height:100%;width:calc(var(--p) * 100%);background:var(--accent);transition:width .25s linear}
+.pbtns{display:grid;gap:10px}
+.pbtn{font:inherit;font-weight:700;font-size:1.2rem;display:flex;align-items:center;gap:12px;padding:12px 16px;border:0;border-radius:14px;color:#fff;text-align:left;cursor:pointer;min-height:60px}
+.pbtn.o2{color:var(--o2-ink)}
+.pbtn:disabled{cursor:default}
+.pbtns.done .pbtn:not(.picked){opacity:.28}
+.pbtn.picked{box-shadow:0 0 0 4px var(--ink)}
+.locked{text-align:center;color:var(--muted);margin:0;font-size:1.05rem}
+.verdict{text-align:center;padding:28px 16px;border-radius:18px;color:#fff;display:grid;gap:6px;background:var(--ink)}
+.result.good .verdict{background:var(--good)}
+.verdict .eyebrow{color:rgba(255,255,255,.8)}
+.verdict h2{font-size:4rem}
+.verdict p{margin:0;font-size:1.15rem}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0}
+.stats div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center}
+.stats dt{color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.1em;font-weight:700}
+.stats dd{margin:0;font-family:var(--display);font-size:2rem;font-weight:800;font-variant-numeric:tabular-nums}
+.stats small{font-size:.9rem;color:var(--muted);font-family:Figtree, system-ui, sans-serif;font-weight:600}
+.mini-podium{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.mini-podium li{display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-weight:700}
+.mini-podium .pts{margin-left:auto}
+
+#status{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;font-weight:700;z-index:10;max-width:calc(100% - 32px);text-align:center}
+
+@media (max-width:820px){
+  .host,.host.with-panel{grid-template-columns:1fr;height:auto;min-height:100dvh}
+  .joinpanel{flex-direction:row;flex-wrap:wrap;padding:16px}
+  .joinpanel .qr{max-width:140px}
+  .joinpanel .code{font-size:2.4rem}
+  .qgrid{grid-template-columns:1fr;grid-template-rows:auto}
+  .opts{grid-template-columns:1fr}
+  .ranks li{grid-template-columns:1.6em 1.6em minmax(0,1fr) auto 4.5em;gap:8px;padding:10px 12px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="status" role="status" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script>
+// Each cat: photo file (photos/<img>.jpg), four options, index of the right one.
+const QUESTIONS = [
+  { img: 'lola',        options: ['Lolo', 'Lola', 'Lala', 'Lolita'], answer: 1 },
+  { img: 'mama-calico', options: ['Nanay Calico', 'Mommy Calico', 'Mama Tabby', 'Mama Calico'], answer: 3 },
+  { img: 'simba',       options: ['Simba', 'Mufasa', 'Nala', 'Simbang Gabi'], answer: 0 },
+  { img: 'ellen',       options: ['Elena', 'Helen', 'Ellen', 'Ellie'], answer: 2 },
+  { img: 'elena',       options: ['Ellen', 'Helena', 'Elena', 'Elaine'], answer: 2 },
+  { img: 'lady',        options: ['Lady', 'Madame', 'Binibini', 'Princess'], answer: 0 },
+  { img: 'hairline',    options: ['Haircut', 'Noo', 'Bangs', 'Hairline'], answer: 3 },
+  { img: 'panda',       options: ['Oreo', 'Panda', 'Pandesal', 'Pandan'], answer: 1 },
+  { img: 'chocnut',     options: ['Chocnut da Poknat', 'Choknat da Poknut', 'Chocnut the Peanut', 'Chocolate da Pogi'], answer: 0 },
+  { img: 'cassy',       options: ['Cassie', 'Cassandra', 'Cassy', 'Kasey'], answer: 2 },
+  { img: 'chocolate',   options: ['Chocnut', 'Chocolate', 'Tsokolate', 'Cocoa'], answer: 1 },
+  { img: 'jacket',      options: ['Hoodie', 'Dyaket', 'Sweater', 'Jacket'], answer: 3 },
+  { img: 'spade',       options: ['Pala', 'Ace of Spades', 'Clover', 'Spade'], answer: 3 },
+  { img: 'cross',       options: ['Krus', 'Cross', 'Ekis', 'Plus'], answer: 1 },
+  { img: 'haircut',     options: ['Kalbo', 'Burst Fade', 'Haircut', 'Wolf Cut'], answer: 2 },
+  { img: 'spot',        options: ['Spot', 'Batik', 'Dot', 'Patch'], answer: 0 },
+  { img: 'ramp',        options: ['Rampa', 'Ramp', 'Runway', 'Slide'], answer: 1 },
+  { img: 'hugo',        options: ['Hugo', 'Hugot', 'Hugh', 'Boss'], answer: 0 },
+  { img: 'odd-eye',     options: ['Duling', 'Heterochromia', 'Odd-Eye', 'Two-Tone'], answer: 2 },
+];
+
+const PREFIX = 'namethatcat-v1-';
+const LETTERS = ['A', 'B', 'C', 'D'];
+const AVATARS = ['🐱', '😺', '🐈', '🐈‍⬛', '🦁', '🐯', '🐭', '🐟', '🧶', '🍜', '🥛', '🐾'];
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+const dots = '<span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i></span>';
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+function status(msg) {
+  const el = $('#status');
+  el.textContent = msg || '';
+  el.hidden = !msg;
+}
+function send(conn, m) {
+  if (conn && conn.open) { try { conn.send(m); } catch (e) {} }
+}
+function makeCode() {
+  let s = '';
+  for (let i = 0; i < 5; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  return s;
+}
+// Public address of the hosted game. Phones can't open localhost or a file on the host PC,
+// so when the host screen runs from one of those, the QR code points here instead.
+const PUBLIC_URL = 'https://s3ryz000.github.io/Cat/';
+
+function isPrivateHost() {
+  return location.protocol === 'file:' || /^(localhost|127\.|\[::1\])/.test(location.hostname);
+}
+function baseUrl() {
+  if (isPrivateHost() && PUBLIC_URL) return PUBLIC_URL.replace(/\/?$/, '/');
+  return location.origin + location.pathname.replace(/index\.html$/, '');
+}
+function joinLink(code) { return baseUrl() + '?room=' + code; }
+function shortLink() { return baseUrl().replace(/^https?:\/\//, '').replace(/\/$/, ''); }
+
+/* ---------------- Landing ---------------- */
+
+function landing() {
+  const saved = store.get('ntc-host');
+  app.innerHTML = `
+  <main class="landing">
+    <div class="brand">
+      ${dots}
+      <h1 class="display">Name That Cat</h1>
+      <p>${QUESTIONS.length} cats, four names each, and plenty of look-alike traps.</p>
+    </div>
+    <div class="choices">
+      <section class="card">
+        <h2>Host a game</h2>
+        <p>Open this on the projector or TV. Players join from their phones with a code.</p>
+        <button id="host-new" class="btn primary">Start hosting</button>
+        ${saved && saved.phase !== 'end' ? `<button id="host-resume" class="btn">Resume game ${esc(saved.code)}</button>` : ''}
+      </section>
+      <section class="card">
+        <h2>Join a game</h2>
+        <form id="code-form">
+          <label for="code-in">Game code from the big screen</label>
+          <input id="code-in" class="big-in code" maxlength="5" autocomplete="off" autocapitalize="characters" placeholder="ABCDE">
+          <button class="btn primary">Join</button>
+        </form>
+      </section>
+    </div>
+  </main>`;
+  $('#host-new').onclick = () => hostStart(false);
+  const r = $('#host-resume');
+  if (r) r.onclick = () => hostStart(true);
+  $('#code-form').onsubmit = e => {
+    e.preventDefault();
+    const code = $('#code-in').value.trim().toUpperCase();
+    history.replaceState(null, '', '?room=' + code);
+    playerJoinScreen(code);
+  };
+}
+
+/* ---------------- Host ---------------- */
+
+const H = {};
+
+function hostStart(resume) {
+  const saved = resume ? store.get('ntc-host') : null;
+  Object.assign(H, {
+    code: saved ? saved.code : makeCode(),
+    players: new Map(),
+    order: saved ? saved.order : QUESTIONS.map((_, i) => i),
+    qi: saved ? saved.qi : -1,
+    phase: 'lobby',
+    limit: saved ? saved.limit : 20,
+    shuffle: saved ? saved.shuffle : false,
+    answers: new Map(),
+    qStart: 0,
+    tick: null,
+    qrOpen: false,
+    ready: false,
+  });
+  if (saved) {
+    for (const p of saved.players) H.players.set(p.id, { ...p, conn: null, gain: 0 });
+    if (saved.phase === 'end') H.phase = 'end';
+    else if (saved.phase === 'question') { H.qi = saved.qi - 1; H.phase = H.qi >= 0 ? 'board' : 'lobby'; }
+    else if (saved.qi >= 0) H.phase = 'board';
+  }
+  QUESTIONS.forEach(q => { new Image().src = `photos/${q.img}.jpg`; });
+  hostConnecting('Opening a game room…');
+  openHostPeer(0);
+}
+
+function hostConnecting(msg) {
+  app.innerHTML = `<main class="landing"><div class="brand">${dots}<h1 class="display">Name That Cat</h1><p>${esc(msg)}</p></div></main>`;
+}
+
+function openHostPeer(attempt) {
+  if (H.peer) { try { H.peer.destroy(); } catch (e) {} }
+  const peer = new Peer(PREFIX + H.code);
+  H.peer = peer;
+  peer.on('open', () => { H.ready = true; status(''); hostSave(); hostRender(); });
+  peer.on('connection', conn => {
+    conn.on('data', m => hostOnData(conn, m));
+    conn.on('close', () => hostOnClose(conn));
+    conn.on('error', () => hostOnClose(conn));
+  });
+  peer.on('disconnected', () => {
+    if (!peer.destroyed) { status('Reconnecting to the game server…'); peer.reconnect(); }
+  });
+  peer.on('error', err => {
+    if (err.type === 'unavailable-id') {
+      if (attempt < 6) {
+        hostConnecting(`Room ${H.code} is still closing from last time. Retrying…`);
+        setTimeout(() => openHostPeer(attempt + 1), 3000);
+      } else {
+        H.code = makeCode();
+        openHostPeer(0);
+      }
+    } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) {
+      status('Lost connection to the game server. Retrying…');
+      setTimeout(() => { if (peer.disconnected && !peer.destroyed) peer.reconnect(); }, 3000);
+    } else if (err.type !== 'peer-unavailable') {
+      console.warn('Peer error', err);
+    }
+  });
+}
+
+function hostSave() {
+  store.set('ntc-host', {
+    code: H.code, order: H.order, qi: H.qi, phase: H.phase, limit: H.limit, shuffle: H.shuffle,
+    players: [...H.players.values()].map(p => ({ id: p.id, name: p.name, avatar: p.avatar, score: p.score, correct: p.correct })),
+  });
+}
+
+const curQ = () => QUESTIONS[H.order[H.qi]];
+const connected = () => [...H.players.values()].filter(p => p.conn && p.conn.open);
+const ranked = () => [...H.players.values()].sort((a, b) => b.score - a.score);
+const rankOf = p => 1 + [...H.players.values()].filter(o => o.score > p.score).length;
+
+function hostOnData(conn, m) {
+  if (!m || typeof m !== 'object') return;
+  if (m.t === 'join') {
+    const id = String(m.id || '').slice(0, 40);
+    const name = String(m.name || '').trim().slice(0, 20);
+    const avatar = AVATARS.includes(m.avatar) ? m.avatar : AVATARS[0];
+    if (!id || !name) return send(conn, { t: 'error', msg: 'Enter a name first.' });
+    const clash = [...H.players.values()].find(p => p.name.toLowerCase() === name.toLowerCase() && p.id !== id);
+    if (clash) return send(conn, { t: 'error', msg: `Someone already joined as “${name}”. Pick another name.` });
+    let p = H.players.get(id);
+    if (!p) { p = { id, name, avatar, score: 0, gain: 0, correct: 0 }; H.players.set(id, p); }
+    else { p.name = name; p.avatar = avatar; }
+    if (p.conn && p.conn !== conn) { try { p.conn.close(); } catch (e) {} }
+    p.conn = conn;
+    conn.pid = id;
+    hostSave();
+    sendState(p);
+    hostRefreshLive();
+  } else if (m.t === 'answer') {
+    const p = H.players.get(conn.pid);
+    if (!p || H.phase !== 'question' || m.qi !== H.qi || H.answers.has(p.id)) return;
+    const pick = Number(m.pick);
+    if (!(pick >= 0 && pick <= 3)) return;
+    const ms = Math.min(Date.now() - H.qStart, H.limit * 1000);
+    H.answers.set(p.id, { pick, ms });
+    send(conn, { t: 'locked', pick });
+    hostRefreshLive();
+    const live = connected();
+    if (live.length && live.every(o => H.answers.has(o.id))) hostReveal();
+  }
+}
+
+function hostOnClose(conn) {
+  const p = H.players.get(conn.pid);
+  if (p && p.conn === conn) { p.conn = null; hostRefreshLive(); }
+}
+
+function revealMsg(p) {
+  const q = curQ();
+  const a = H.answers.get(p.id);
+  return {
+    t: 'reveal', n: H.qi + 1, total: H.order.length, options: q.options, correct: q.answer,
+    pick: a ? a.pick : null, gained: p.gain, score: p.score, rank: rankOf(p), players: H.players.size,
+  };
+}
+function endMsg(p) {
+  return {
+    t: 'end', score: p.score, correct: p.correct, total: H.order.length, rank: rankOf(p), players: H.players.size,
+    podium: ranked().slice(0, 3).map(o => ({ name: o.name, avatar: o.avatar, score: o.score })),
+  };
+}
+function sendState(p) {
+  if (!p.conn) return;
+  if (H.phase === 'lobby' || (H.phase === 'board' && H.qi < 0)) {
+    send(p.conn, { t: 'lobby', name: p.name, avatar: p.avatar });
+  } else if (H.phase === 'question') {
+    const q = curQ();
+    const a = H.answers.get(p.id);
+    send(p.conn, {
+      t: 'q', qi: H.qi, n: H.qi + 1, total: H.order.length, img: q.img, options: q.options,
+      remaining: H.limit * 1000 - (Date.now() - H.qStart), limit: H.limit * 1000, locked: a ? a.pick : null,
+    });
+  } else if (H.phase === 'reveal' || H.phase === 'board') {
+    send(p.conn, revealMsg(p));
+  } else if (H.phase === 'end') {
+    send(p.conn, endMsg(p));
+  }
+}
+function broadcast() { for (const p of H.players.values()) sendState(p); }
+
+function hostStartGame() {
+  if (H.shuffle) {
+    const o = QUESTIONS.map((_, i) => i);
+    for (let i = o.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; }
+    H.order = o;
+  } else {
+    H.order = QUESTIONS.map((_, i) => i);
+  }
+  for (const p of H.players.values()) { p.score = 0; p.gain = 0; p.correct = 0; }
+  H.qi = -1;
+  hostNext();
+}
+
+function hostNext() {
+  H.qi++;
+  if (H.qi >= H.order.length) return hostEnd();
+  H.phase = 'question';
+  H.answers = new Map();
+  H.qStart = Date.now();
+  hostSave();
+  broadcast();
+  hostRender();
+  clearInterval(H.tick);
+  H.tick = setInterval(() => {
+    const left = H.limit * 1000 - (Date.now() - H.qStart);
+    const s = $('#secs');
+    if (s) s.textContent = Math.max(0, Math.ceil(left / 1000));
+    const r = $('#ring');
+    if (r) r.style.strokeDashoffset = 283 * (1 - Math.max(0, left) / (H.limit * 1000));
+    if (left <= 0) hostReveal();
+  }, 200);
+}
+
+function hostReveal() {
+  if (H.phase !== 'question') return;
+  clearInterval(H.tick);
+  const q = curQ();
+  for (const p of H.players.values()) {
+    const a = H.answers.get(p.id);
+    const gain = a && a.pick === q.answer ? Math.round(1000 * (1 - 0.5 * a.ms / (H.limit * 1000))) : 0;
+    p.gain = gain;
+    p.score += gain;
+    if (gain) p.correct++;
+  }
+  H.phase = 'reveal';
+  hostSave();
+  broadcast();
+  hostRender();
+}
+
+function hostBoard() { H.phase = 'board'; hostSave(); hostRender(); }
+
+function hostEnd() {
+  clearInterval(H.tick);
+  H.phase = 'end';
+  H.qi = H.order.length - 1;
+  hostSave();
+  broadcast();
+  hostRender();
+}
+
+function hostPlayAgain() {
+  for (const p of H.players.values()) { p.score = 0; p.gain = 0; p.correct = 0; }
+  H.qi = -1;
+  H.phase = 'lobby';
+  hostSave();
+  broadcast();
+  hostRender();
+}
+
+function hostQuit() {
+  clearInterval(H.tick);
+  store.del('ntc-host');
+  try { H.peer.destroy(); } catch (e) {}
+  H.peer = null;
+  landing();
+}
+
+function countText() {
+  const on = connected().length;
+  return `${plural(on, 'player')} online`;
+}
+
+function rosterHtml() {
+  if (!H.players.size) return '<li class="muted">Scan the QR code or open the link on your phone to join.</li>';
+  return [...H.players.values()].map(p =>
+    `<li class="chip ${p.conn && p.conn.open ? '' : 'off'}"><span class="av">${p.avatar}</span>${esc(p.name)}</li>`).join('');
+}
+
+// Draws the QR modules straight onto a canvas instead of using the library's GIF encoder.
+function qrImg(text) {
+  try {
+    const q = qrcode(0, 'M');
+    q.addData(text);
+    q.make();
+    const n = q.getModuleCount(), cell = 8, margin = 2, size = (n + margin * 2) * cell;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff';
+    g.fillRect(0, 0, size, size);
+    g.fillStyle = '#000';
+    for (let r = 0; r < n; r++)
+      for (let k = 0; k < n; k++)
+        if (q.isDark(r, k)) g.fillRect((k + margin) * cell, (r + margin) * cell, cell, cell);
+    return `<img src="${c.toDataURL('image/png')}" alt="QR code to join the game">`;
+  } catch (e) {
+    console.warn('QR code failed', e);
+    return '<p class="qr-fail">Type the link below to join.</p>';
+  }
+}
+
+function panelHtml() {
+  const unreachable = isPrivateHost() && !PUBLIC_URL;
+  return `<aside class="joinpanel">
+    <div class="qr">${qrImg(joinLink(H.code))}</div>
+    ${unreachable ? '<p class="qr-warn">This screen is running from this computer, so phones can\'t open this QR code. Host from the GitHub Pages link instead.</p>' : ''}
+    <h3>Join at</h3>
+    <p class="url">${esc(shortLink())}</p>
+    <div class="code">${H.code}</div>
+  </aside>`;
+}
+
+function ringSvg() {
+  return `<svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="45"></circle><circle id="ring" cx="50" cy="50" r="45" style="stroke-dashoffset:0"></circle></svg>`;
+}
+
+function questionHtml(reveal) {
+  const q = curQ();
+  const counts = [0, 0, 0, 0];
+  for (const a of H.answers.values()) counts[a.pick]++;
+  const max = Math.max(1, ...counts);
+  const right = counts[q.answer];
+  const side = reveal
+    ? `<p class="answer-reveal">It's <b>${esc(q.options[q.answer])}</b>!</p>
+       <p class="muted">${right} of ${plural(H.answers.size, 'answer')} ${right === 1 ? 'was' : 'were'} right.</p>`
+    : `<div class="clock">${ringSvg()}<span id="secs">${H.limit}</span></div>
+       <p class="answered"><b id="ans-n">${H.answers.size}</b> of <span id="ans-total">${connected().length}</span> answered</p>`;
+  return `<section class="qgrid ${reveal ? 'is-reveal' : ''}">
+    <figure class="photo"><img src="photos/${q.img}.jpg" alt="Cat number ${H.qi + 1}"></figure>
+    <div class="side">
+      <p class="eyebrow">Cat ${H.qi + 1} of ${H.order.length}</p>
+      <h2 class="display q">Who is this cat?</h2>
+      ${side}
+    </div>
+    <ol class="opts">${q.options.map((o, i) => `
+      <li class="opt o${i} ${reveal ? (i === q.answer ? 'right' : 'wrong') : ''}">
+        <span class="letter">${reveal && i === q.answer ? '✓' : LETTERS[i]}</span>
+        <span class="oname">${esc(o)}</span>
+        ${reveal ? `<span class="ocount">${counts[i]}</span><span class="obar" style="--w:${counts[i] / max}"></span>` : ''}
+      </li>`).join('')}
+    </ol>
+  </section>`;
+}
+
+function boardHtml() {
+  const list = ranked();
+  return `<section class="board">
+    <p class="eyebrow">${H.qi >= 0 ? `After cat ${H.qi + 1} of ${H.order.length}` : 'Scores'}</p>
+    <h2 class="display">Leaderboard</h2>
+    ${list.length ? `<ol class="ranks">${list.slice(0, 8).map((p, i) => `
+      <li style="--i:${i}"><span class="rk">${i + 1}</span><span class="av">${p.avatar}</span><span class="nm">${esc(p.name)}</span>
+      <span class="gain">${p.gain ? '+' + p.gain : ''}</span><span class="pts">${p.score.toLocaleString()}</span></li>`).join('')}</ol>`
+      : '<p class="muted">No players yet.</p>'}
+  </section>`;
+}
+
+function endHtml() {
+  const list = ranked();
+  const top = [list[1], list[0], list[2]];
+  const cls = ['p2', 'p1', 'p3'];
+  const place = [2, 1, 3];
+  return `<section class="final">
+    <p class="eyebrow">Final results</p>
+    <h2 class="display">The cat experts</h2>
+    <div class="podium">${top.map((p, i) => p ? `
+      <div class="step ${cls[i]}"><span class="place">${place[i]}</span><span class="av">${p.avatar}</span>
+      <span class="who">${esc(p.name)}</span><span class="pts">${p.score.toLocaleString()} pts · ${p.correct}/${H.order.length}</span></div>` : '<div></div>').join('')}
+    </div>
+    ${list.length > 3 ? `<ol class="ranks rest">${list.slice(3, 10).map((p, i) => `
+      <li style="--i:${i}"><span class="rk">${i + 4}</span><span class="av">${p.avatar}</span><span class="nm">${esc(p.name)}</span>
+      <span class="gain">${p.correct}/${H.order.length}</span><span class="pts">${p.score.toLocaleString()}</span></li>`).join('')}</ol>` : ''}
+  </section>`;
+}
+
+function hostRender() {
+  if (!H.ready) return;
+  const showPanel = H.phase === 'lobby' || H.qrOpen;
+  const last = H.qi >= H.order.length - 1;
+  const screens = {
+    lobby: () => `<section class="lobby">
+        <p class="eyebrow">${H.players.size ? 'Players are joining' : 'Waiting for players'}</p>
+        <h1 class="display">Name That Cat</h1>
+        <p class="lede">${QUESTIONS.length} cats, 4 names each. Watch out for the look-alikes.</p>
+        <ul class="roster" id="roster">${rosterHtml()}</ul>
+        <div class="settings">
+          <label for="set-limit">Seconds per cat
+            <select id="set-limit">${[10, 15, 20, 30, 60].map(s => `<option value="${s}" ${s === H.limit ? 'selected' : ''}>${s}</option>`).join('')}</select>
+          </label>
+          <label for="set-shuffle"><input type="checkbox" id="set-shuffle" ${H.shuffle ? 'checked' : ''}> Shuffle cat order</label>
+        </div>
+      </section>`,
+    question: () => questionHtml(false),
+    reveal: () => questionHtml(true),
+    board: boardHtml,
+    end: endHtml,
+  };
+  const controls = {
+    lobby: `<span class="hint" id="hint">${plural(H.players.size, 'player')} in the room</span>
+            <button id="primary" class="btn primary" ${H.players.size ? '' : 'disabled'}>Start game</button>`,
+    question: `<span class="hint kbd">Press Enter to stop the timer</span><button id="primary" class="btn">Stop timer</button>`,
+    reveal: `<span class="hint kbd">Press Enter to continue</span><button id="primary" class="btn primary">Leaderboard</button>`,
+    board: `<button id="quit" class="btn">End session</button><span class="hint"></span>
+            <button id="primary" class="btn primary">${H.qi < 0 ? 'First cat' : last ? 'Final results' : 'Next cat'}</button>`,
+    end: `<button id="quit" class="btn">End session</button><span class="hint"></span>
+          <button id="primary" class="btn primary">Play again</button>`,
+  };
+  app.innerHTML = `<div class="host ${showPanel ? 'with-panel' : ''}">
+    ${showPanel ? panelHtml() : ''}
+    <div class="stage">
+      <header class="topbar">
+        <span>Join at <b>${esc(shortLink())}</b></span><span class="code-pill">${H.code}</span>
+        <span class="grow"></span>
+        <span class="count" id="count">${countText()}</span>
+        ${H.phase !== 'lobby' ? `<button class="btn small" id="qr-toggle">${H.qrOpen ? 'Hide QR' : 'Show QR'}</button>` : ''}
+      </header>
+      <main class="screen">${screens[H.phase]()}</main>
+      <footer class="controls">${controls[H.phase]}</footer>
+    </div>
+  </div>`;
+
+  const actions = { lobby: hostStartGame, question: hostReveal, reveal: hostBoard, board: hostNext, end: hostPlayAgain };
+  $('#primary').onclick = actions[H.phase];
+  const quit = $('#quit');
+  if (quit) quit.onclick = hostQuit;
+  const qt = $('#qr-toggle');
+  if (qt) qt.onclick = () => { H.qrOpen = !H.qrOpen; hostRender(); };
+  const lim = $('#set-limit');
+  if (lim) lim.onchange = () => { H.limit = Number(lim.value); hostSave(); };
+  const sh = $('#set-shuffle');
+  if (sh) sh.onchange = () => { H.shuffle = sh.checked; hostSave(); };
+  if (H.phase === 'question') {
+    const left = H.limit * 1000 - (Date.now() - H.qStart);
+    $('#secs').textContent = Math.max(0, Math.ceil(left / 1000));
+  }
+}
+
+function hostRefreshLive() {
+  if (!H.ready) return;
+  const c = $('#count');
+  if (c) c.textContent = countText();
+  if (H.phase === 'lobby') {
+    const r = $('#roster');
+    if (r) r.innerHTML = rosterHtml();
+    const h = $('#hint');
+    if (h) h.textContent = `${plural(H.players.size, 'player')} in the room`;
+    const b = $('#primary');
+    if (b) b.disabled = !H.players.size;
+  } else if (H.phase === 'question') {
+    const n = $('#ans-n'), t = $('#ans-total');
+    if (n) n.textContent = H.answers.size;
+    if (t) t.textContent = connected().length;
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (!H.peer || !H.ready) return;
+  if (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) return;
+  if (e.key === 'Enter' || e.key === ' ') {
+    const b = $('#primary');
+    if (b && !b.disabled) { e.preventDefault(); b.click(); }
+  }
+});
+window.addEventListener('beforeunload', e => {
+  if (H.peer && (H.phase === 'question' || H.phase === 'reveal' || H.phase === 'board')) { e.preventDefault(); e.returnValue = ''; }
+});
+
+/* ---------------- Player ---------------- */
+
+function playerId() {
+  let id = store.get('ntc-pid');
+  if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); store.set('ntc-pid', id); }
+  return id;
+}
+
+const P = { id: playerId(), code: '', peer: null, conn: null, joined: false, me: store.get('ntc-me') || { name: '', avatar: AVATARS[0] }, q: null, tick: null, retry: null, joinTimer: null };
+
+function phoneHead(left) {
+  return `<header class="phone-head">${left}<span class="me">${P.me.avatar} ${esc(P.me.name)}</span></header>`;
+}
+
+function playerJoinScreen(code, err) {
+  clearInterval(P.tick);
+  status('');
+  app.innerHTML = `<main class="phone">
+    <header class="phone-head"><span class="logo">${dots}Name That Cat</span></header>
+    <form id="join" class="join" novalidate>
+      <label for="j-code">Game code</label>
+      <input id="j-code" class="big-in code" maxlength="5" autocomplete="off" autocapitalize="characters" value="${esc(code || '')}" placeholder="ABCDE">
+      <label for="j-name">Your name</label>
+      <input id="j-name" class="big-in" maxlength="20" autocomplete="nickname" value="${esc(P.me.name)}" placeholder="e.g. Tita Sam">
+      <fieldset class="avatars"><legend>Pick an avatar</legend>
+        ${AVATARS.map((a, i) => `<label class="av-opt" for="av-${i}"><input type="radio" name="av" id="av-${i}" value="${a}" ${a === P.me.avatar ? 'checked' : ''}><span>${a}</span></label>`).join('')}
+      </fieldset>
+      <p class="err" id="j-err" ${err ? '' : 'hidden'}>${esc(err || '')}</p>
+      <button class="btn primary block" id="j-go">Join the game</button>
+    </form>
+  </main>`;
+  $('#join').onsubmit = e => {
+    e.preventDefault();
+    const c = $('#j-code').value.trim().toUpperCase();
+    const name = $('#j-name').value.trim();
+    const av = document.querySelector('input[name=av]:checked');
+    const errEl = $('#j-err');
+    if (c.length !== 5) { errEl.textContent = 'The game code has 5 characters. It is on the big screen.'; errEl.hidden = false; return; }
+    if (!name) { errEl.textContent = 'Enter your name so the host knows who you are.'; errEl.hidden = false; return; }
+    P.code = c;
+    P.me = { name: name.slice(0, 20), avatar: av ? av.value : AVATARS[0] };
+    store.set('ntc-me', P.me);
+    history.replaceState(null, '', '?room=' + c);
+    const btn = $('#j-go');
+    btn.disabled = true;
+    btn.textContent = 'Joining…';
+    errEl.hidden = true;
+    playerConnect();
+  };
+}
+
+function joinFail(msg) {
+  P.joined = false;
+  clearTimeout(P.joinTimer);
+  playerJoinScreen(P.code, msg);
+}
+
+function playerConnect() {
+  clearTimeout(P.retry);
+  if (P.peer && !P.peer.destroyed && P.peer.open) return dialHost();
+  if (P.peer) { try { P.peer.destroy(); } catch (e) {} }
+  const peer = new Peer();
+  P.peer = peer;
+  peer.on('open', dialHost);
+  peer.on('disconnected', () => { if (!peer.destroyed) peer.reconnect(); });
+  peer.on('error', err => {
+    if (err.type === 'peer-unavailable') {
+      if (P.joined) { status('The host screen is offline. Retrying…'); P.retry = setTimeout(playerConnect, 3000); }
+      else joinFail(`No game found with code ${P.code}. Check the code on the big screen.`);
+    } else if (!P.joined) {
+      joinFail('Could not reach the game server. Check your internet connection and try again.');
+    } else {
+      status('Connection lost. Reconnecting…');
+      P.retry = setTimeout(playerConnect, 3000);
+    }
+  });
+}
+
+function dialHost() {
+  const conn = P.peer.connect(PREFIX + P.code, { reliable: true });
+  P.conn = conn;
+  clearTimeout(P.joinTimer);
+  P.joinTimer = setTimeout(() => {
+    if (conn.open) return;
+    if (P.joined) { status('Still reconnecting…'); P.retry = setTimeout(playerConnect, 2000); }
+    else joinFail('The game did not answer. Make sure the host screen is open, then try again.');
+  }, 12000);
+  conn.on('open', () => {
+    clearTimeout(P.joinTimer);
+    conn.send({ t: 'join', id: P.id, name: P.me.name, avatar: P.me.avatar });
+    status('');
+  });
+  conn.on('data', playerOnData);
+  conn.on('close', () => {
+    if (P.conn === conn && P.joined) { status('Connection lost. Reconnecting…'); P.retry = setTimeout(playerConnect, 2000); }
+  });
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && P.joined && (!P.conn || !P.conn.open)) playerConnect();
+});
+
+function playerOnData(m) {
+  if (!m || typeof m !== 'object') return;
+  if (m.t === 'error') {
+    P.joined = false;
+    try { P.conn.close(); } catch (e) {}
+    return playerJoinScreen(P.code, m.msg);
+  }
+  P.joined = true;
+  if (m.t === 'lobby') pWaiting();
+  else if (m.t === 'q') pQuestion(m);
+  else if (m.t === 'locked') pLocked(m.pick);
+  else if (m.t === 'reveal') pReveal(m);
+  else if (m.t === 'end') pEnd(m);
+}
+
+function pWaiting() {
+  clearInterval(P.tick);
+  app.innerHTML = `<main class="phone">
+    ${phoneHead(`<span class="logo">${dots}Name That Cat</span>`)}
+    <section class="waiting">
+      <div class="big-av">${P.me.avatar}</div>
+      <h2 class="display">You're in, ${esc(P.me.name)}!</h2>
+      <p class="muted">Watch the big screen. The first cat is coming up.</p>
+      <div class="pulse" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    </section>
+  </main>`;
+}
+
+function pQuestion(m) {
+  clearInterval(P.tick);
+  P.q = { ...m, picked: null };
+  const end = Date.now() + m.remaining;
+  app.innerHTML = `<main class="phone">
+    ${phoneHead(`<span>Cat ${m.n} of ${m.total}</span>`)}
+    <h2 class="display pq">Who is this cat?</h2>
+    <figure class="photo sm"><img src="photos/${esc(m.img)}.jpg" alt="Cat number ${m.n}"></figure>
+    <div class="tbar"><span id="tfill" style="--p:${Math.max(0, m.remaining / m.limit)}"></span></div>
+    <div class="pbtns" id="pbtns">${m.options.map((o, i) =>
+      `<button class="pbtn o${i}" data-i="${i}"><span class="letter">${LETTERS[i]}</span>${esc(o)}</button>`).join('')}</div>
+    <p class="locked" id="locked" hidden></p>
+  </main>`;
+  document.querySelectorAll('.pbtn').forEach(b => {
+    b.onclick = () => {
+      if (P.q.picked !== null) return;
+      const i = Number(b.dataset.i);
+      send(P.conn, { t: 'answer', qi: m.qi, pick: i });
+      pLocked(i);
+    };
+  });
+  P.tick = setInterval(() => {
+    const left = end - Date.now();
+    const f = $('#tfill');
+    if (f) f.style.setProperty('--p', Math.max(0, left / m.limit));
+    if (left <= 0) {
+      clearInterval(P.tick);
+      if (P.q.picked === null) {
+        document.querySelectorAll('.pbtn').forEach(b => { b.disabled = true; });
+        $('#pbtns').classList.add('done');
+        const l = $('#locked');
+        l.textContent = "Time's up! Waiting for the answer…";
+        l.hidden = false;
+      }
+    }
+  }, 200);
+  if (m.locked !== null && m.locked !== undefined) pLocked(m.locked);
+}
+
+function pLocked(i) {
+  if (!P.q) return;
+  P.q.picked = i;
+  const box = $('#pbtns');
+  if (!box) return;
+  box.classList.add('done');
+  box.querySelectorAll('.pbtn').forEach(b => {
+    b.disabled = true;
+    b.classList.toggle('picked', Number(b.dataset.i) === i);
+  });
+  const l = $('#locked');
+  l.innerHTML = `Locked in: <b>${esc(P.q.options[i])}</b>. Waiting for everyone else…`;
+  l.hidden = false;
+}
+
+function pReveal(m) {
+  clearInterval(P.tick);
+  const ok = m.pick === m.correct;
+  const none = m.pick === null || m.pick === undefined;
+  app.innerHTML = `<main class="phone result ${ok ? 'good' : 'bad'}">
+    ${phoneHead(`<span>Cat ${m.n} of ${m.total}</span>`)}
+    <section class="verdict">
+      <p class="eyebrow">${none ? 'No answer' : ok ? 'Correct' : 'Not quite'}</p>
+      <h2 class="display">${ok ? '+' + m.gained : none ? "Time's up" : '+0'}</h2>
+      <p>It was <b>${esc(m.options[m.correct])}</b>${!ok && !none ? `, not ${esc(m.options[m.pick])}` : ''}.</p>
+    </section>
+    <dl class="stats">
+      <div><dt>Score</dt><dd>${m.score.toLocaleString()}</dd></div>
+      <div><dt>Rank</dt><dd>#${m.rank} <small>of ${m.players}</small></dd></div>
+    </dl>
+    <p class="locked">Next cat soon. Keep your eyes on the big screen.</p>
+  </main>`;
+}
+
+function pEnd(m) {
+  clearInterval(P.tick);
+  app.innerHTML = `<main class="phone">
+    ${phoneHead('<span>Final results</span>')}
+    <section class="verdict" style="background:var(--accent)">
+      <p class="eyebrow">You finished</p>
+      <h2 class="display">#${m.rank}</h2>
+      <p>of ${plural(m.players, 'player')} · ${m.score.toLocaleString()} points · ${m.correct}/${m.total} cats named</p>
+    </section>
+    <ol class="mini-podium">${m.podium.map((p, i) =>
+      `<li><span class="rk">${i + 1}</span><span class="av">${p.avatar}</span>${esc(p.name)}<span class="pts">${p.score.toLocaleString()}</span></li>`).join('')}</ol>
+    <p class="locked">Thanks for playing!</p>
+  </main>`;
+}
+
+/* ---------------- Boot ---------------- */
+
+const room = (new URLSearchParams(location.search).get('room') || '').trim().toUpperCase();
+if (typeof Peer === 'undefined') {
+  app.innerHTML = `<main class="landing"><div class="brand">${dots}<h1 class="display">Name That Cat</h1><p>The game engine could not load. Check your internet connection and refresh.</p></div></main>`;
+} else if (room) {
+  P.code = room;
+  playerJoinScreen(room);
+} else {
+  landing();
+}
+</script>
+</body>
+</html>
